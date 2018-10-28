@@ -93,6 +93,7 @@ module Streamly.Streams.StreamD
     -- * Transformation
     -- ** By folding (scans)
     , scanlM'
+    , chunksOf
 
     -- * Filtering
     , filter
@@ -499,6 +500,35 @@ postscanlM' fstep begin (Stream step state) =
 {-# INLINE scanlM' #-}
 scanlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
 scanlM' fstep begin s = begin `seq` (begin `cons` postscanlM' fstep begin s)
+
+-- chunksOf :: Monad m => Int -> Stream m a -> Stream m (Stream m a)
+-- chunksOf n (Stream step state) = n `seq` Stream step' (state, nil, 0)
+--   where
+--     {-# INLINE_LATE step' #-}
+--     step' gst (st, acc, i) = do
+--         r <- step (rstState gst) st
+--         case r of
+--             Yield x s -> if i >= n
+--                 then return $ Yield acc (s, yield x, 1)
+--                 else step' gst (s, x `cons` acc, i+1)
+--             Stop -> return $ if i == 0
+--                 then Stop
+--                 else Yield acc (st, nil, 0)
+
+{-# INLINE chunksOf #-}
+chunksOf :: Monad m => Int -> Stream m a -> Stream m [a]
+chunksOf n (Stream step state) = n `seq` Stream step' (state, [])
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, acc) = do
+        r <- step (rstState gst) st
+        case r of
+            Yield x s -> if length acc >= n
+                then return $ Yield acc (s, [x])
+                else step' gst (s, x:acc)
+            Stop -> return $ if length acc == 0
+                then Stop
+                else Yield acc (st, [])
 
 -------------------------------------------------------------------------------
 -- Filtering

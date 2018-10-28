@@ -153,6 +153,7 @@ module Streamly.Prelude
     -- sink.
     , toList
     , toHandle
+    , chunksOf
 
     -- * Transformation
     -- | One to one transformations, each element in the input stream is
@@ -814,6 +815,12 @@ toHandle h m = go (toStream m)
             single a = liftIO (IO.hPutStrLn h a)
             yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
         in K.unStream m1 defState stop single yieldk
+
+
+-- |  Split input into chunk of desired size.
+{-# INLINE chunksOf #-}
+chunksOf :: (IsStream t, Monad m) => Int -> t m a -> t m [a]
+chunksOf n s = fromStreamD $ D.chunksOf n $ toStreamD s
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)
