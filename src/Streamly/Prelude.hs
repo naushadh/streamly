@@ -820,11 +820,11 @@ toHandle h m = go (toStream m)
 
 -- |  Split input into chunk of desired size.
 {-# INLINE chunksOf #-}
-chunksOf :: (IsStream t, Monad m) => Int -> t m a -> t m (t m a)
+chunksOf :: (IsStream t1, IsStream t2, Monad m) => Int -> t1 m a -> t1 m (t2 m a)
 chunksOf n s = fromStreamD . fmap fromStreamD $ D.chunksOf n $ toStreamD s
 
 {-# INLINE concat #-}
-concat :: (IsStream t, Monad m) => t m (t m a) -> t m a
+concat :: (IsStream t1, IsStream t2, Monad m) => t1 m (t2 m a) -> t1 m a
 concat s = fromStreamD $ D.concat $ fmap toStreamD $ toStreamD s
 
 ------------------------------------------------------------------------------
