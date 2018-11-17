@@ -154,6 +154,7 @@ module Streamly.Prelude
     , toList
     , toHandle
     , chunksOf
+    , concat
 
     -- * Transformation
     -- | One to one transformations, each element in the input stream is
@@ -232,7 +233,7 @@ import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, mapM, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
-               reverse, iterate, init, and, or, lookup, foldr1)
+               reverse, iterate, init, and, or, lookup, foldr1, concat)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -819,8 +820,12 @@ toHandle h m = go (toStream m)
 
 -- |  Split input into chunk of desired size.
 {-# INLINE chunksOf #-}
-chunksOf :: (IsStream t, Monad m) => Int -> t m a -> t m [a]
-chunksOf n s = fromStreamD $ D.chunksOf n $ toStreamD s
+chunksOf :: (IsStream t, Monad m) => Int -> t m a -> t m (t m a)
+chunksOf n s = fromStreamD . fmap fromStreamD $ D.chunksOf n $ toStreamD s
+
+{-# INLINE concat #-}
+concat :: (IsStream t, Monad m) => t m (t m a) -> t m a
+concat s = fromStreamD $ D.concat $ fmap toStreamD $ toStreamD s
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)

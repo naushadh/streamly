@@ -94,6 +94,7 @@ module Streamly.Streams.StreamD
     -- ** By folding (scans)
     , scanlM'
     , chunksOf
+    , concat
 
     -- * Filtering
     , filter
@@ -124,7 +125,7 @@ import GHC.Types ( SPEC(..) )
 import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
                takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
-               notElem, null, head, tail, zipWith)
+               notElem, null, head, tail, zipWith, concat)
 
 import Streamly.SVar (MonadAsync, State(..), defState, rstState)
 import qualified Streamly.Streams.StreamK as K
@@ -501,34 +502,38 @@ postscanlM' fstep begin (Stream step state) =
 scanlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
 scanlM' fstep begin s = begin `seq` (begin `cons` postscanlM' fstep begin s)
 
--- chunksOf :: Monad m => Int -> Stream m a -> Stream m (Stream m a)
--- chunksOf n (Stream step state) = n `seq` Stream step' (state, nil, 0)
---   where
---     {-# INLINE_LATE step' #-}
---     step' gst (st, acc, i) = do
---         r <- step (rstState gst) st
---         case r of
---             Yield x s -> if i >= n
---                 then return $ Yield acc (s, yield x, 1)
---                 else step' gst (s, x `cons` acc, i+1)
---             Stop -> return $ if i == 0
---                 then Stop
---                 else Yield acc (st, nil, 0)
+------------------------------------------------------------------------------
+-- Transformation of chunks
+------------------------------------------------------------------------------
 
 {-# INLINE chunksOf #-}
-chunksOf :: Monad m => Int -> Stream m a -> Stream m [a]
-chunksOf n (Stream step state) = n `seq` Stream step' (state, [])
+chunksOf :: Monad m => Int -> Stream m a -> Stream m (Stream m a)
+chunksOf n (Stream step state) = n `seq` Stream step' (state, nil, 0)
   where
     {-# INLINE_LATE step' #-}
-    step' gst (st, acc) = do
+    step' gst (st, acc, accLen) = do
         r <- step (rstState gst) st
         case r of
-            Yield x s -> if length acc >= n
-                then return $ Yield acc (s, [x])
-                else step' gst (s, x:acc)
-            Stop -> return $ if length acc == 0
+            Yield x s -> if accLen >= n
+                then return $ Yield acc (s, x `cons` nil, 1)
+                else step' gst (s, x `cons` acc, accLen+1)
+            Stop -> return $ if accLen == 0
                 then Stop
-                else Yield acc (st, [])
+                else Yield acc (st, nil, 0)
+
+concat :: Monad m => Stream m (Stream m a) -> Stream m a
+concat (Stream step state) = Stream step' (state, nil)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, bag) = do
+        bag' <- uncons bag
+        case bag' of
+            Nothing -> do
+                r <- step (rstState gst) st
+                case r of
+                    Yield bagNext s -> step' gst (s, bagNext)
+                    Stop -> pure Stop
+            Just (bagH, bagR) -> pure $ Yield bagH (st, bagR)
 
 -------------------------------------------------------------------------------
 -- Filtering
