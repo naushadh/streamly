@@ -129,6 +129,8 @@ import Prelude
 
 import Streamly.SVar (MonadAsync, State(..), defState, rstState)
 import qualified Streamly.Streams.StreamK as K
+import qualified Data.Sequence as Seq
+import qualified Data.Foldable as Foldable
 
 ------------------------------------------------------------------------------
 -- The direct style stream type
@@ -508,18 +510,19 @@ scanlM' fstep begin s = begin `seq` (begin `cons` postscanlM' fstep begin s)
 
 {-# INLINE chunksOf #-}
 chunksOf :: Monad m => Int -> Stream m a -> Stream m (Stream m a)
-chunksOf n (Stream step state) = n `seq` Stream step' (state, nil, 0)
+chunksOf n (Stream step state) = n `seq` Stream step' (state, mempty, 0)
   where
+    seqToStream = fromList . Foldable.toList
     {-# INLINE_LATE step' #-}
     step' gst (st, acc, accLen) = do
         r <- step (rstState gst) st
         case r of
             Yield x s -> if accLen >= n
-                then return $ Yield acc (s, x `cons` nil, 1)
-                else step' gst (s, x `cons` acc, accLen+1)
+                then return $ Yield (seqToStream acc) (s, pure x, 1)
+                else step' gst (s, acc Seq.|> x, accLen+1)
             Stop -> return $ if accLen == 0
                 then Stop
-                else Yield acc (st, nil, 0)
+                else Yield (seqToStream acc) (st, mempty, 0)
 
 concat :: Monad m => Stream m (Stream m a) -> Stream m a
 concat (Stream step state) = Stream step' (state, nil)
