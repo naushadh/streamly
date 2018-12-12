@@ -18,7 +18,7 @@
     * Filters: `uniq`, `insertBy`, `deleteBy`, `findM`
     * Multi-stream: `eqBy`, `cmpBy`, `mergeBy`, `mergeByM`, `mergeAsyncBy`,
       `mergeAsyncByM`, `isPrefixOf`, `isSubsequenceOf`, `stripPrefix`,
-      `concatMap`, `concatMapM`, `indexed`, `indexedR`
+      `concat`, `concatMap`, `concatMapM`, `indexed`, `indexedR`, `chunksOf`
 
 ## 0.5.2
 

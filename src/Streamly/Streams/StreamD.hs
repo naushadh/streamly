@@ -111,6 +111,8 @@ module Streamly.Streams.StreamD
     , (!!)
     , concatMapM
     , concatMap
+    , concat
+    , chunksOf
 
     -- ** Substreams
     , isPrefixOf
@@ -195,7 +197,7 @@ import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
                takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
                notElem, null, head, tail, zipWith, lookup, foldr1, sequence,
-               (!!), scanl, scanl1, concatMap, replicate, enumFromTo)
+               (!!), scanl, scanl1, concat, concatMap, replicate, enumFromTo)
 
 import Streamly.SVar (MonadAsync, State(..), defState, rstState)
 
@@ -244,6 +246,20 @@ cons x (Stream step state) = Stream step1 Nothing
             Yield a s -> Yield a (Just s)
             Skip  s   -> Skip (Just s)
             Stop      -> Stop
+
+{-# INLINE_NORMAL snoc #-}
+snoc :: Monad m => a -> Stream m a -> Stream m a
+snoc x (Stream step state) = Stream step1 (Just state)
+    where
+    {-# INLINE_LATE step1 #-}
+    step1 _ Nothing   = return $ Stop
+    step1 gst (Just st) = do
+        r <- step (rstState gst) st
+        return $
+          case r of
+            Yield a s -> Yield a (Just s)
+            Skip  s   -> Skip (Just s)
+            Stop      -> Yield x Nothing
 
 -------------------------------------------------------------------------------
 -- Deconstruction
@@ -806,6 +822,25 @@ concatMapM f (Stream step state) = Stream step' (Left state)
 {-# INLINE concatMap #-}
 concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
 concatMap f = concatMapM (return . f)
+
+{-# INLINE concat #-}
+concat :: Monad m => Stream m (Stream m a) -> Stream m a
+concat = concatMapM return
+
+{-# INLINE chunksOf #-}
+chunksOf :: Monad m => Int -> Stream m a -> Stream m (Stream m a)
+chunksOf n (Stream step state) = n `seq` Stream step' (state, 0, nil)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, i, inner_s) = do
+        r <- step (rstState gst) st
+        return $ case r of
+            Yield a s ->
+                if i < n
+                then Skip (s, i+1, snoc a inner_s)
+                else Yield inner_s (s, 1, yield a)
+            Skip s -> Skip (s, i, inner_s)
+            Stop -> Stop
 
 ------------------------------------------------------------------------------
 -- Substreams

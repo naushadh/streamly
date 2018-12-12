@@ -335,6 +335,8 @@ module Streamly.Prelude
     -- ** Flattening
     , concatMapM
     , concatMap
+    , concat
+    , chunksOf
 
     -- ** Folds
     , eqBy
@@ -359,7 +361,7 @@ import Prelude
                foldl, mapM, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
-               scanl, scanl1, replicate, concatMap)
+               scanl, scanl1, replicate, concat, concatMap)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -1344,6 +1346,13 @@ elemIndices a = findIndices (==a)
 elemIndex :: (Monad m, Eq a) => a -> SerialT m a -> m (Maybe Int)
 elemIndex a = findIndex (== a)
 
+-- | Flatten a stream of streams into a single stream.
+--
+-- @since 0.6.0
+{-# INLINE concat #-}
+concat :: (IsStream t, Monad m) => t m (t m a) -> t m a
+concat m = fromStreamD $ D.concat . fmap toStreamD . toStreamD $ m
+
 -- | Map each element to a stream and then flatten the results into a single
 -- stream.
 --
@@ -1361,6 +1370,13 @@ concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 {-# INLINE concatMapM #-}
 concatMapM :: (IsStream t, Monad m) => (a -> m (t m b)) -> t m a -> t m b
 concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
+
+-- | Flatten a stream of streams into a single stream.
+--
+-- @since 0.6.0
+{-# INLINE chunksOf #-}
+chunksOf :: (IsStream t, Monad m) => Int -> t m a -> t m (t m a)
+chunksOf n = fromStreamD . fmap fromStreamD . D.chunksOf n . toStreamD
 
 ------------------------------------------------------------------------------
 -- Substreams
