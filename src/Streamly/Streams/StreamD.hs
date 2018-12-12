@@ -809,8 +809,8 @@ concatMapM f (Stream step state) = Stream step' (Left state)
             Skip s -> return $ Skip (Left s)
             Stop -> return Stop
 
-    step' _ (Right (Stream inner_step inner_st, st)) = do
-        r <- inner_step defState inner_st
+    step' gst (Right (Stream inner_step inner_st, st)) = do
+        r <- inner_step (rstState gst) inner_st
         case r of
             Yield b inner_s ->
                 return $ Yield b (Right (Stream inner_step inner_s, st))
