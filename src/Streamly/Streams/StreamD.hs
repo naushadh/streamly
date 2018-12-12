@@ -809,14 +809,11 @@ concatMapM f (Stream step state) = Stream step' (Left state)
             Skip s -> return $ Skip (Left s)
             Stop -> return Stop
 
-    step' gst (Right (Stream inner_step inner_st, st)) = do
-        r <- inner_step (rstState gst) inner_st
-        case r of
-            Yield b inner_s ->
-                return $ Yield b (Right (Stream inner_step inner_s, st))
-            Skip inner_s ->
-                return $ Skip (Right (Stream inner_step inner_s, st))
-            Stop -> return $ Skip (Left st)
+    step' _ (Right (inner_s, st)) = do
+        r <- uncons inner_s
+        return $ case r of
+            Just (b, inner_next_s) -> Yield b (Right (inner_next_s, st))
+            Nothing -> Skip (Left st)
 
 {-# INLINE concatMap #-}
 concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
