@@ -809,11 +809,14 @@ concatMapM f (Stream step state) = Stream step' (Left state)
             Skip s -> return $ Skip (Left s)
             Stop -> return Stop
 
-    step' _ (Right (inner_s, st)) = do
-        r <- uncons inner_s
-        return $ case r of
-            Just (b, inner_next_s) -> Yield b (Right (inner_next_s, st))
-            Nothing -> Skip (Left st)
+    step' _ (Right (Stream inner_step inner_st, st)) = do
+        r <- inner_step defState inner_st
+        case r of
+            Yield b inner_s ->
+                return $ Yield b (Right (Stream inner_step inner_s, st))
+            Skip inner_s ->
+                return $ Skip (Right (Stream inner_step inner_s, st))
+            Stop -> return $ Skip (Left st)
 
 {-# INLINE concatMap #-}
 concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
@@ -825,18 +828,19 @@ concat = concatMapM return
 
 {-# INLINE chunksOf #-}
 chunksOf :: Monad m => Int -> Stream m a -> Stream m (Stream m a)
-chunksOf n (Stream step state) = n `seq` Stream step' (state, 0, nil)
+chunksOf n (Stream step state) = n `seq` Stream step' (state, 0, Just nil)
   where
     {-# INLINE_LATE step' #-}
-    step' gst (st, i, inner_s) = do
+    step' _ (_, _, Nothing) = pure Stop
+    step' gst (st, i, Just inner_s) = do
         r <- step (rstState gst) st
         return $ case r of
             Yield a s ->
                 if i < n
-                then Skip (s, i+1, snoc a inner_s)
-                else Yield inner_s (s, 1, yield a)
-            Skip s -> Skip (s, i, inner_s)
-            Stop -> Stop
+                then Skip (s, i+1, Just $ snoc a inner_s)
+                else Yield inner_s (s, 1, Just $ yield a)
+            Skip s -> Skip (s, i, Just inner_s)
+            Stop -> Yield inner_s (st, i, Nothing)
 
 ------------------------------------------------------------------------------
 -- Substreams
